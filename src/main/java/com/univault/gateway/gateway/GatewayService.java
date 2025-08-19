@@ -3,11 +3,10 @@ package com.univault.gateway.gateway;
 import com.univault.gateway.registry.InstanceInfo;
 import com.univault.gateway.registry.RegistryService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -17,14 +16,19 @@ import java.util.stream.Collectors;
 
 @Service
 public class GatewayService {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayService.class);
+
     private final RegistryService registryService;
 
     @Autowired
     public GatewayService(RegistryService registryService) {
         this.registryService = registryService;
     }
+
     /*
-        create or resolves route for the incoming request
+       creates the complete routes according to requirement the service
+       for e.g., endpoint of ims service is /api/institutes
     */
     public String resolveRoute(String serviceName, String relativePath) {
         /*
@@ -33,6 +37,12 @@ public class GatewayService {
             build a url with provided args
         */
         List<InstanceInfo> instances = registryService.getInstances(serviceName);
+
+        if (instances == null || instances.isEmpty()) {
+            log.error("No instance found for service: {}", serviceName);
+            throw new RuntimeException("No instance found for service: " + serviceName);
+        }
+
         InstanceInfo instance = instances.get(0);
         return "http://" + instance.host() + ":" + instance.port() + relativePath;
     }
@@ -47,7 +57,10 @@ public class GatewayService {
                     .lines()
                     .collect(Collectors.joining(System.lineSeparator()));
 
-            HttpEntity<String> entity = new HttpEntity<>(body);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>(body,headers);
 
             return restTemplate.exchange(
                     targetUrl,
@@ -55,8 +68,16 @@ public class GatewayService {
                     entity,
                     String.class
             );
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid HTTP method: {}", method, e);
+            return ResponseEntity.badRequest().body("Invalid HTTP method: " + method);
         } catch (IOException e) {
-            throw new RuntimeException("Error reading request body", e);
+            log.error("Error reading request body", e);
+            return ResponseEntity.internalServerError().body("Error reading request body");
+        } catch (Exception e) {
+            log.error("Error forwarding request to URL: {}", targetUrl, e);
+            return ResponseEntity.status(502).body("Error forwarding request: " + e.getMessage());
         }
     }
+
 }

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: API Gateway By uni_vault
+  redis:
+    host: localhost
+    port: 6379
+
+server:
+  port: 4000
+
+services:
+  list:
+    - name: ims-service
+      host: localhost
+      port: 8090
+      exposure: protected
+    - name: auth-service
+      host: localhost
+      port: 8081
+      exposure: public
+
+
+
+logging:
+  level:
+    root: INFO
+    com.univault.gateway.config: INFO

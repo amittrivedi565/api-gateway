@@ -1,14 +1,11 @@
 package com.univault.gateway.gateway;
 
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/gateway")
@@ -40,6 +37,7 @@ public class GatewayController {
         String relativePath = fullPath.replaceFirst("/gateway", ""); // /abc/123
 
         String targetUrl = gatewayService.resolveRoute(serviceName, relativePath);
+        System.out.println("➡ Forwarding to: " + targetUrl);
         return gatewayService.forwardRequest(targetUrl, request, method);
     }
 }

@@ -1,6 +1,5 @@
 package com.univault.gateway.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.univault.gateway.registry.InstanceInfo;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

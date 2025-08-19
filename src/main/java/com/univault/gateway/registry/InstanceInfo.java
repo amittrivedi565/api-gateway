@@ -6,7 +6,6 @@ import java.util.Map;
     service: "abc-service",
     host: "localhost",
     port: 8081,
-    exposure: public or protected
-    meta:[]
+    exposure:protected
  * */
-public record InstanceInfo(String service, String host, int port, String exposure,Map<String, String> metadata) {}
+public record InstanceInfo(String service, String host, int port, String exposure){}
