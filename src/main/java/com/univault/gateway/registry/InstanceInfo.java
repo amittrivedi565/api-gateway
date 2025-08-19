@@ -1,4 +1,4 @@
-package com.univault.gateway.registery;
+package com.univault.gateway.registry;
 
 import java.util.Map;
 
