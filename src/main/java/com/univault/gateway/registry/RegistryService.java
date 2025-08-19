@@ -48,6 +48,11 @@ public class RegistryService {
         }
     }
 
+    public InstanceInfo getInstance(String service) {
+        List<InstanceInfo> instances = getInstances(service);
+        return instances.isEmpty() ? null : instances.get(0);
+    }
+
     // get all the instances of a service
     public List<InstanceInfo> getInstances(String service) {
         String key = getKey(service);

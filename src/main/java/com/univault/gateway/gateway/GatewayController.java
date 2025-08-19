@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
 @RestController
 @RequestMapping("/gateway")
 public class GatewayController {
@@ -35,9 +36,9 @@ public class GatewayController {
         String method = request.getMethod(); // GET, POST, PUT, DELETE
         String fullPath = request.getRequestURI(); // /gateway/abc/123
         String relativePath = fullPath.replaceFirst("/gateway", ""); // /abc/123
-
         String targetUrl = gatewayService.resolveRoute(serviceName, relativePath);
         System.out.println("➡ Forwarding to: " + targetUrl);
-        return gatewayService.forwardRequest(targetUrl, request, method);
+
+        return gatewayService.forwardRequest(targetUrl, request, method, serviceName);
     }
 }
