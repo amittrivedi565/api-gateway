@@ -34,7 +34,8 @@ public class ServiceRegistrar {
                     service.getName(),
                     service.getHost(),
                     service.getPort(),
-                    service.getExposure()
+                    service.getExposure(),
+                    service.getPublicPaths()
             );
             log.info("Registering service: {}", instance);
             registryService.register(instance);

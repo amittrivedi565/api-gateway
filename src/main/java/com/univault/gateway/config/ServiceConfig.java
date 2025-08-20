@@ -25,6 +25,7 @@ public class ServiceConfig {
         private String host;
         private int port;
         private String exposure;
+        private List<String> publicPaths = new ArrayList<>(); // dynamic public routes
 
         // getters & setters
         public String getName() {
@@ -57,6 +58,14 @@ public class ServiceConfig {
 
         public void setExposure(String exposure) {
             this.exposure = exposure;
+        }
+
+        public List<String> getPublicPaths() {
+            return publicPaths;
+        }
+
+        public void setPublicPaths(List<String> publicPaths) {
+            this.publicPaths = publicPaths;
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.univault.gateway.registry;
 
+import java.util.List;
 import java.util.Map;
 
 /*
@@ -8,4 +9,4 @@ import java.util.Map;
     port: 8081,
     exposure:protected
  * */
-public record InstanceInfo(String service, String host, int port, String exposure){}
+public record InstanceInfo(String service, String host, int port, String exposure, List<String> publicPaths){}
