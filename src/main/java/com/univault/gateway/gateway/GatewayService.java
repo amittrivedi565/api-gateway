@@ -1,118 +1,113 @@
 package com.univault.gateway.gateway;
 
-import com.univault.gateway.registry.InstanceInfo;
 import com.univault.gateway.registry.RegistryService;
+import com.univault.gateway.registry.ServiceInfo;
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.juli.logging.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
 
 @Service
 public class GatewayService {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayService.class);
-
+    private final RestTemplate restTemplate = new RestTemplate();
     private final RegistryService registryService;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     @Autowired
     public GatewayService(RegistryService registryService) {
         this.registryService = registryService;
     }
 
-    public String resolveRoute(String serviceName, String relativePath) {
-        List<InstanceInfo> instances = registryService.getInstances(serviceName);
-        if (instances.isEmpty()) {
-            log.error("No instance found for service: {}", serviceName);
-            throw new RuntimeException("No instance found for service: " + serviceName);
+    /*
+     * By providing HttpServlet incoming request url we can extract service name for redirection
+     * */
+    private String extractServiceNameFromUrl(String url) throws NullPointerException {
+        if (url == null) {
+            throw new IllegalArgumentException("URL cannot be null");
         }
-        InstanceInfo instance = instances.get(0);
-        return "http://" + instance.host() + ":" + instance.port() + relativePath;
+        /*
+         * Url start with service name
+         * Splits url with / in between for e.g., /academic/institutes/12354
+         * After splitting -> parts = ["","academic","institutes","12345"]
+         * Converts it to stream for perform filter operation
+         * If the string is not empty then only add to the new String[] or don't
+         * */
+        String[] parts = Arrays.stream(url.split("/"))
+                .filter(s -> !s.isBlank())
+                .toArray(String[]::new);
+
+        if (parts.length == 0) {
+            throw new IllegalArgumentException("No service name found in URL: " + url);
+        }
+        log.info("URL generated for service {}", parts[0]);
+        /* Returns service name*/
+        return parts[0];
     }
 
-    public ResponseEntity<?> forwardRequest(String targetUrl,
-                                            HttpServletRequest request,
-                                            String method,
-                                            String serviceName) {
+    /*
+     * Build target url from the existing request, http://localhost:8080/institutes/abc
+     * */
+    private String createTargetUrl(ServiceInfo serviceInfo, String url) {
+        return "http://" + serviceInfo.host() + ":" + serviceInfo.port() + url;
+    }
+
+    /*
+     * forwardRequest redirect the incoming request from the client to the required microservice
+     * Few Args are required request, method, serviceName
+     * Method contains GET, POST, PUT and DELETE as per REST API
+     * */
+    public ResponseEntity<?> forwardRequest(HttpServletRequest request){
         try {
-            // Read body
-            String body = request.getReader().lines().collect(Collectors.joining("\n"));
 
-            // Headers with token
+            String url = request.getRequestURI();
+            /*
+             * Finds instance of the required service, firstly available if not return Service Unavailable
+             * serviceInfo will contain information such as name, host, port, routes in which routes exposure, method etc...
+             * serviceName is received from the @extractServiceNameFromUrl
+             * */
+
+            String serviceName = extractServiceNameFromUrl(url);
+            ServiceInfo serviceInfo = registryService.getService(serviceName)
+                    .orElseThrow(() -> new IllegalStateException("Service Unavailable: " + serviceName));
+
+            /*
+                * Get the url incoming, but remember this url also contains service name so we have to remove that as well
+                * Get the method type for e.g., GET, POST...
+            */
+            String urlSuffix = url.replaceFirst("/[^/]+", "");
+            byte[] body = request.getInputStream().readAllBytes();
+            HttpMethod method = HttpMethod.valueOf(request.getMethod());
+            /*
+                * Copy all the header coming with the request
+                * Create a new request with header
+            * */
+
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            String token = request.getHeader("Authorization");
-            if (token != null) headers.set("Authorization", token);
+            Collections.list(request.getHeaderNames())
+                    .forEach(name -> headers.addAll(name,Collections.list(request.getHeaders(name))));
 
-            HttpEntity<String> entity = new HttpEntity<>(body, headers);
 
-            // Get service info
-            InstanceInfo instance = registryService.getInstances(serviceName).stream().findFirst()
-                    .orElseThrow(() -> new RuntimeException("Service unavailable: " + serviceName));
+            /*
+                * Incoming url : /academic-service/institutes/12345
+                * Required url : http://host:port/urlSuffix
+            * */
+            String targetUrl = createTargetUrl(serviceInfo, urlSuffix);
 
-            // Strip /gateway prefix
-            String path = request.getRequestURI().replaceFirst("^/gateway", "");
-
-            boolean isProtected = "protected".equalsIgnoreCase(instance.exposure());
-            boolean isPublic = isPublicPath(path, method, instance.publicPaths());
-
-            // Auth only for protected + non-public
-            if (isProtected && !isPublic) {
-                InstanceInfo auth = registryService.getInstances("auth-service").stream().findFirst()
-                        .orElseThrow(() -> new RuntimeException("Auth service unavailable"));
-                String authUrl = "http://" + auth.host() + ":" + auth.port() + "/auth/token";
-                ResponseEntity<String> authResp = new RestTemplate().exchange(authUrl, HttpMethod.POST, entity, String.class);
-
-                if (!authResp.getStatusCode().is2xxSuccessful()) {
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-                }
-            }
-
-            // Forward to target service
-            return new RestTemplate().exchange(targetUrl, HttpMethod.valueOf(method), entity, String.class);
+            HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
+            log.info("Request Forwarded : {}",targetUrl);
+            return restTemplate.exchange(targetUrl, method, entity, String.class);
 
         } catch (Exception e) {
+            log.error("Error forwarding request", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
-    }
-
-    /**
-     * Checks public path with allowed HTTP method
-     * Example in ServiceConfig: "/api/institutes:GET"
-     */
-    private boolean isPublicPath(String requestPath, String requestMethod, List<String> publicPaths) {
-        if (publicPaths == null) return false;
-
-        // remove trailing slash
-        requestPath = requestPath.endsWith("/") && requestPath.length() > 1
-                ? requestPath.substring(0, requestPath.length() - 1)
-                : requestPath;
-
-        for (String pathWithMethod : publicPaths) {
-            String[] parts = pathWithMethod.split(":");
-            String pathPattern = parts[0].endsWith("/") && parts[0].length() > 1
-                    ? parts[0].substring(0, parts[0].length() - 1)
-                    : parts[0];
-
-            String allowedMethod = parts.length > 1 ? parts[1].toUpperCase() : null;
-
-            // convert {var} to *
-            pathPattern = pathPattern.replaceAll("\\{[^/]+}", "*");
-
-            if (pathMatcher.match(pathPattern, requestPath)) {
-                if (allowedMethod == null || allowedMethod.equalsIgnoreCase(requestMethod)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 }

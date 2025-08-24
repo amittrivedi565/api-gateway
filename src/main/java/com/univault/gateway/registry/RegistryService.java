@@ -1,74 +1,66 @@
 package com.univault.gateway.registry;
 
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class RegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistryService.class);
-    private final RedisTemplate<String, InstanceInfo> redisTemplate;
+    private final RedisTemplate<String, ServiceInfo> redisTemplate;
 
-    // registry: service name → list of instances
-    public RegistryService(RedisTemplate<String, InstanceInfo> redisTemplate) {
+    /* This is a service registry contains all the services registered, provides operations for redis */
+    public RegistryService(RedisTemplate<String, ServiceInfo> redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
-    // Register service
-    public void register(InstanceInfo instance) {
+    /* Register service by service info */
+    public void register(ServiceInfo service) {
         // creates a key with getKey method, requires service name will return for e.g., "registry: user-service"
-        String key = getKey(instance.service());
+        String key = getKey(service.name());
         try {
-            redisTemplate.opsForList().rightPush(key, instance);
-
+            redisTemplate.opsForList().rightPush(key, service);
             // expire or remove the stale data
-            redisTemplate.expire(key, 5, TimeUnit.MINUTES);
+            redisTemplate.expire(key, 1, TimeUnit.HOURS);
         } catch (Exception e) {
-            log.error("Failed to register instance: {}", instance, e);
+            log.error("Failed to register instance: {}", service, e);
         }
     }
 
-    // deregister service
-    public void deregister(InstanceInfo instance) {
-        String key = getKey(instance.service());
+    /* Deregister service by service info*/
+    public void deregister(ServiceInfo service) {
+        String key = getKey(service.name());
         /*
             opsForList provides operations such as push, remove...
             .remove requires three args
             key to be removed, how many occurrence to be removed and an object
         */
         try {
-            redisTemplate.opsForList().remove(key, 1, instance);
+            redisTemplate.opsForList().remove(key, 1, service);
         } catch (Exception e) {
-            log.error("Failed to deregister instance: {}", instance, e);
+            log.error("Failed to deregister instance: {}", service, e);
         }
     }
 
-    public InstanceInfo getInstance(String service) {
-        List<InstanceInfo> instances = getInstances(service);
-        return instances.isEmpty() ? null : instances.get(0);
-    }
-
-    // get all the instances of a service
-    public List<InstanceInfo> getInstances(String service) {
-        String key = getKey(service);
-        /*
-            returns instances of the services, ranging between 0 and -1
-        */
+    /* Gets the service */
+    public Optional<ServiceInfo> getService(String serviceName) {
+        String key = getKey(serviceName); // "registry:academic"
         try {
-            List<InstanceInfo> instances = redisTemplate.opsForList().range(key, 0, -1);
-            return instances != null ? instances : List.of();
+            ServiceInfo service = redisTemplate.opsForList().index(key, 0); // get first instance
+            return Optional.ofNullable(service);
         } catch (Exception e) {
-            log.error("Failed to get instances for service: {}", service, e);
-            return List.of(); // return empty list if Redis fails
+            log.error("Failed to get service: {}", serviceName, e);
+            return Optional.empty();
         }
     }
 
-    // create a key, to be provided to the redis, "registry:user-service"
+
+    /* create a key, to be provided to the redis, "registry:user-service" */
     private String getKey(String service) {
         return "registry:" + service;
     }

@@ -1,44 +1,45 @@
 package com.univault.gateway.gateway;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-
+@CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 @RestController
-@RequestMapping("/gateway")
+@RequestMapping("/")
 public class GatewayController {
 
+    private static final Logger log = LoggerFactory.getLogger(GatewayController.class);
     private final GatewayService gatewayService;
 
     @Autowired
-    public GatewayController(GatewayService gatewayService){
+    public GatewayController(GatewayService gatewayService) {
         this.gatewayService = gatewayService;
     }
 
     /*
-       incomingRequest is an endpoint exposed to public for serving
-       provided request should contain X-Service-Name Header for redirection to the required service
-       request to the protected routes will only be redirected if Authentication Header have valid token
-       validation of token will be executed by auth-service
-    */
+     * Exposed endpoint of the gateway accessible by the internet
+     * This will pass the incoming HttpRequest to the service layer with required Args
+     * HttpServletRequest contains whole HttpRequest which has all the components such as header, body, uri...
+     * serviceName is extracted from the required header
+     * request is passed as it is to the @forwardRequest handler
+     * */
     @RequestMapping("/**")
-    public ResponseEntity<?> incomingRequest(HttpServletRequest request, @RequestHeader("X-Service-Name") String serviceName){
-
-        /*
-            @method will contain the incoming requests like get, post, put, delete
-            @fullPath incoming request url will be like /gateway/:serviceName/:pathVariables
-            @relativePath removes the gateway embedded in the url, only required is passed
-        */
-        String method = request.getMethod(); // GET, POST, PUT, DELETE
-        String fullPath = request.getRequestURI(); // /gateway/abc/123
-        String relativePath = fullPath.replaceFirst("/gateway", ""); // /abc/123
-        String targetUrl = gatewayService.resolveRoute(serviceName, relativePath);
-        System.out.println("➡ Forwarding to: " + targetUrl);
-
-        return gatewayService.forwardRequest(targetUrl, request, method, serviceName);
+    public ResponseEntity<?> incomingRequest(HttpServletRequest request) {
+        try {
+            return gatewayService.forwardRequest(request);
+        } catch (RuntimeException e) {
+            log.error("Runtime exception while forwarding to service {}: {}", "TBA", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Service unavailable: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected exception while forwarding to service {}: {}", "TBA", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Unexpected error occurred");
+        }
     }
 }
