@@ -1,41 +1,40 @@
-# GatewayApplication
+# Gateway Application
 
-A Spring Boot API Gateway for routing requests to microservices based on configuration. Supports **route exposure control** (public, private, protected) and dynamic URL routing.
+This is a Spring Boot Gateway service that forwards incoming requests to microservices based on route configuration. It supports route exposure levels (`PUBLIC`, `PRIVATE`, `PROTECTED`) and handles authentication/authorization for protected routes.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Configuration](#configuration)
+- [Building the JAR](#building-the-jar)
+- [Running the Application](#running-the-application)
+- [Usage](#usage)
 
 ---
 
 ## Features
 
-- Dynamic routing based on service name in URL.
-- Route exposure management:
-    - `PUBLIC` – accessible by anyone.
-    - `PRIVATE` – internal network access only.
-    - `PROTECTED` – requires authentication.
-- Forward HTTP requests (GET, POST, PUT, DELETE) to microservices.
-- Configurable via `application.yml`.
-
----
-
-## Prerequisites
-
-- Java 17+
-- Maven 3+
-- Running microservices (e.g., `academic` on `localhost:8090`, `auth` on `localhost:5030`)
-- Redis (optional, if using caching)
+- Forward HTTP requests to microservices dynamically.
+- Route exposure control:
+    - **PUBLIC**: Accessible to anyone.
+    - **PRIVATE**: Accessible only from internal network.
+    - **PROTECTED**: Requires authentication.
+- Reads microservice configuration from `application.yml`.
+- Supports GET, POST, PUT, DELETE methods.
+- Logs service and route information with color coding.
 
 ---
 
 ## Configuration
 
-All services and routes are configured in `src/main/resources/application.yml`.
+The service is configured via `application.yml`. Example:
 
 ```yaml
 spring:
   application:
     name: GatewayApplication
-  redis:
-    host: localhost
-    port: 6379
 
 server:
   port: 4000
@@ -57,7 +56,16 @@ services:
       host: localhost
       port: 5030
       default-exposure: private
+```
+## Set Application.yml 
+```aiignore
+## Running the Gateway with a Custom YAML Configuration
 
-logging:
-  level:
-    root: INFO
+By default, Spring Boot reads `application.yml` from `src/main/resources`.  
+You can override it and provide a custom configuration file when running the JAR.
+
+### Command
+
+```bash
+java -jar GatewayApplication.jar --spring.config.location=file:/full/path/to/application.yml
+```
