@@ -11,14 +11,14 @@ import java.util.List;
 
 @Component
 @ConfigurationProperties(prefix = "services")
-public class ServiceInfoRegistry {
+public class Registry {
 
-    private static final Logger log = LoggerFactory.getLogger(ServiceInfoRegistry.class);
+    private static final Logger log = LoggerFactory.getLogger(Registry.class);
 
-    private List<ServiceInfo> list = new ArrayList<>();
+    private List<Service> list = new ArrayList<>();
 
-    public List<ServiceInfo> getList() { return list; }
-    public void setList(List<ServiceInfo> list) { this.list = list; }
+    public List<Service> getList() { return list; }
+    public void setList(List<Service> list) { this.list = list; }
 
     // ANSI color codes
     private static final String RESET = "\u001B[0m";
@@ -30,7 +30,7 @@ public class ServiceInfoRegistry {
     @PostConstruct
     public void logServices() {
         log.info(GREEN + "Loaded {} services from configuration" + RESET, list.size());
-        for (ServiceInfo service : list) {
+        for (Service service : list) {
             log.info(CYAN + "Service: {} at {}:{}" + RESET, service.getName(), service.getHost(), service.getPort());
             log.info(YELLOW + "Default Exposure: {}" + RESET, service.getDefaultExposure());
             for (Route route : service.getRoutes()) {
@@ -40,7 +40,7 @@ public class ServiceInfoRegistry {
         }
     }
 
-    public static class ServiceInfo {
+    public static class Service {
         private String name;
         private String host;
         private int port;

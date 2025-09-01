@@ -8,7 +8,6 @@ import org.springframework.http.*;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 @org.springframework.stereotype.Service
@@ -17,66 +16,16 @@ public class Service {
     private static final Logger log = LoggerFactory.getLogger(Service.class);
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final ServiceInfoRegistry serviceInfoRegistry;
-    private final RouteValidator routeValidator;
+    private final Registry registry;
+    private final Utils utils;
+    private final Validator validator;
 
     @Autowired
-    public Service(ServiceInfoRegistry serviceInfoRegistry, RouteValidator routeValidator) {
-        this.serviceInfoRegistry = serviceInfoRegistry;
-        this.routeValidator = routeValidator;
+    public Service(Registry registry, Utils utils, Validator validator) {
+        this.registry = registry;
+        this.utils = utils;
+        this.validator = validator;
     }
-
-    /*
-     * By providing HttpServlet incoming request url we can extract service name for redirection
-     * */
-    private String extractServiceNameFromUrl(String url) {
-        if (url == null) {
-            throw new IllegalArgumentException("URL cannot be null");
-        }
-
-        /*
-          * Let's suppose the incoming url is like `localhost:4000/service-name/api/endpoint`
-          * Extract service name from the url
-          *
-          * First convert the url into Array[] of streams
-          * Split array by "/", so it will be like ["","/","service-name","endpoint"]
-          *
-          *
-          * Remove the blanks ->  ["/","service-name","endpoint"]
-          *
-          *
-          * Create new array
-          * Our Service name will be at index 0, parts[0]
-         */
-        String[] parts = Arrays.stream(url.split("/"))
-                .filter(s -> !s.isBlank())
-                .toArray(String[]::new);
-
-        if (parts.length == 0) {
-            throw new IllegalArgumentException("No service name found in URL: " + url);
-        }
-        log.info("URL generated for service {}", parts[0]);
-        return parts[0];
-    }
-
-    /*
-     * Build target url from the existing request, http://localhost:8080/institutes/abc
-     * */
-    private String createTargetUrl(ServiceInfoRegistry.ServiceInfo serviceInfo, String url) {
-        return "http://" + serviceInfo.getHost() + ":" + serviceInfo.getPort() + url;
-    }
-
-    /*
-     * Helper method to find service info from in-memory YAML config
-     * */
-    private ServiceInfoRegistry.ServiceInfo getService(String serviceName) {
-        return serviceInfoRegistry.getList()
-                .stream()
-                .filter(s -> s.getName().equals(serviceName))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Service Unavailable: " + serviceName));
-    }
-
     /*
      * forwardRequest redirect the incoming request from the client to the required microservice
      * Few Args are required request, method, serviceName
@@ -88,17 +37,19 @@ public class Service {
 
             /*
              * Finds instance of the required service, firstly available if not return Service Unavailable
-             * serviceInfo will contain information such as name, host, port, routes in which routes exposure, method etc...
+             * service will contain information such as name, host, port, routes in which routes exposure, method etc...
              * serviceName is received from the @extractServiceNameFromUrl
              * */
-            String serviceName = extractServiceNameFromUrl(url);
-            ServiceInfoRegistry.ServiceInfo serviceInfo = getService(serviceName);
+            String serviceName = utils.extractServiceNameFromUrl(url);
+            Registry.Service service = utils.getService(serviceName, registry);
+
 
             /*
-             * Get the url incoming, but remember this url also contains service name so we have to remove that as well
-             * Get the method type for e.g., GET, POST...
+             * @requestPath removes the service name from the url
+             * @body read all content from the incoming request, create new one for redirection
+             * @method gets the method type for request e.g., GET, POST...
              */
-            String urlSuffix = url.replaceFirst("/[^/]+", "");
+            String requestPath = utils.removeServiceNameFromUrl(url);
             byte[] body = request.getInputStream().readAllBytes();
             HttpMethod method = HttpMethod.valueOf(request.getMethod());
 
@@ -112,19 +63,50 @@ public class Service {
 
             /*
              * Incoming url : /academic-service/abc/123
-             * Required url : http://host:port/urlSuffix
+             * Required url : http://host:port/routePath
              */
-            String targetUrl = createTargetUrl(serviceInfo, urlSuffix);
-            log.info("Target Url Generated : {}", targetUrl);
-
+            String targetUrl = utils.createTargetUrl(service, requestPath);
             HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
+
             log.info("✅ Request Forwarded : {}", targetUrl);
-            routeValidator.checkExposure(serviceName,urlSuffix);
+
+            Registry.Exposure exposure = validator.checkExposure(serviceName, requestPath);
+
             try {
                 /*
                  * Forward the required request to the destination
                  */
-                return restTemplate.exchange(targetUrl, method, entity, String.class);
+                switch (exposure) {
+                    case PUBLIC:
+                        log.info("PUBLIC route accessed: {}", targetUrl);
+                        return restTemplate.exchange(targetUrl, method, entity, String.class);
+
+                    case PRIVATE:
+                        String clientIp = request.getRemoteAddr();
+                        if (isInternalIp(clientIp)) {
+                            log.info("PRIVATE route accessed from internal IP: {}", clientIp);
+                            return restTemplate.exchange(targetUrl, method, entity, String.class);
+                        } else {
+                            log.warn("Blocked PRIVATE route request from external IP: {}", clientIp);
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body("Access denied: PRIVATE route");
+                        }
+
+                    case PROTECTED:
+                        if (isAuthenticated(request)) {
+                            log.info("PROTECTED route accessed by authenticated user");
+                            return restTemplate.exchange(targetUrl, method, entity, String.class);
+                        } else {
+                            log.warn("Blocked PROTECTED route: unauthenticated user");
+                            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                    .body("Authentication required");
+                        }
+
+                    default:
+                        log.error("Unknown exposure type: {}", exposure);
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body("Unknown exposure type");
+                }
             } catch (ResourceAccessException e) {
 
                 /*
@@ -138,5 +120,15 @@ public class Service {
             log.error("Error forwarding request", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
+
+    }
+
+    private boolean isInternalIp(String ip) {
+        return ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("127.");
+    }
+
+    private boolean isAuthenticated(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        return authHeader != null && authHeader.startsWith("Bearer ");
     }
 }

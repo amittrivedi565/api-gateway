@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+/**
+ * Stage wise execution of gateway
+ * Stage 1 -> get the incoming request
+ * Stage 2 -> extract service name, create copy of http request, create target url
+ * Stage 3 -> forward the request based on exposure set in application.yml
+ */
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 @RestController
 @RequestMapping("/")
