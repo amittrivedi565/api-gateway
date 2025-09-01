@@ -1,6 +1,5 @@
 package com.gateway.gateway;
 
-import com.gateway.registry.RegistryService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,13 +17,11 @@ public class GatewayService {
     private static final Logger log = LoggerFactory.getLogger(GatewayService.class);
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final RegistryService registryService;
-    private final GatewayRouteValidator gatewayRouteValidator;
+    private final GatewayServiceInfoRegistry gatewayServiceInfoRegistry;
 
     @Autowired
-    public GatewayService(RegistryService registryService, GatewayRouteValidator gatewayRouteValidator) {
-        this.registryService = registryService;
-        this.gatewayRouteValidator = gatewayRouteValidator;
+    public GatewayService(GatewayServiceInfoRegistry gatewayServiceInfoRegistry) {
+        this.gatewayServiceInfoRegistry = gatewayServiceInfoRegistry;
     }
 
     /*
@@ -56,8 +53,19 @@ public class GatewayService {
     /*
      * Build target url from the existing request, http://localhost:8080/institutes/abc
      * */
-    private String createTargetUrl(ServiceInfo serviceInfo, String url) {
-        return "http://" + serviceInfo.host() + ":" + serviceInfo.port() + url;
+    private String createTargetUrl(GatewayServiceInfoRegistry.ServiceInfo serviceInfo, String url) {
+        return "http://" + serviceInfo.getHost() + ":" + serviceInfo.getPort() + url;
+    }
+
+    /*
+     * Helper method to find service info from in-memory YAML config
+     * */
+    private GatewayServiceInfoRegistry.ServiceInfo getService(String serviceName) {
+        return gatewayServiceInfoRegistry.getList()
+                .stream()
+                .filter(s -> s.getName().equals(serviceName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Service Unavailable: " + serviceName));
     }
 
     /*
@@ -65,48 +73,46 @@ public class GatewayService {
      * Few Args are required request, method, serviceName
      * Method contains GET, POST, PUT and DELETE as per REST API
      * */
-    public ResponseEntity<?> forwardRequest(HttpServletRequest request){
+    public ResponseEntity<?> forwardRequest(HttpServletRequest request) {
         try {
-
             String url = request.getRequestURI();
+
             /*
              * Finds instance of the required service, firstly available if not return Service Unavailable
              * serviceInfo will contain information such as name, host, port, routes in which routes exposure, method etc...
              * serviceName is received from the @extractServiceNameFromUrl
              * */
-
             String serviceName = extractServiceNameFromUrl(url);
-            ServiceInfo serviceInfo = registryService.getService(serviceName)
-                    .orElseThrow(() -> new IllegalStateException("Service Unavailable: " + serviceName));
+            GatewayServiceInfoRegistry.ServiceInfo serviceInfo = getService(serviceName);
 
             /*
-                * Get the url incoming, but remember this url also contains service name so we have to remove that as well
-                * Get the method type for e.g., GET, POST...
-            */
+             * Get the url incoming, but remember this url also contains service name so we have to remove that as well
+             * Get the method type for e.g., GET, POST...
+             */
             String urlSuffix = url.replaceFirst("/[^/]+", "");
             byte[] body = request.getInputStream().readAllBytes();
             HttpMethod method = HttpMethod.valueOf(request.getMethod());
-            /*
-                * Copy all the header coming with the request
-                * Create a new request with header
-            * */
 
+            /*
+             * Copy all the header coming with the request
+             * Create a new request with header
+             */
             HttpHeaders headers = new HttpHeaders();
             Collections.list(request.getHeaderNames())
-                    .forEach(name -> headers.addAll(name,Collections.list(request.getHeaders(name))));
-
+                    .forEach(name -> headers.addAll(name, Collections.list(request.getHeaders(name))));
 
             /*
-                * Incoming url : /academic-service/abc/123
-                * Required url : http://host:port/urlSuffix
-            * */
+             * Incoming url : /academic-service/abc/123
+             * Required url : http://host:port/urlSuffix
+             */
             String targetUrl = createTargetUrl(serviceInfo, urlSuffix);
-            log.info("Target Url Generated : {}",targetUrl);
+            log.info("Target Url Generated : {}", targetUrl);
 
             HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
             log.info(urlSuffix);
-            log.info("✅ Request Forwarded : {}",targetUrl);
-            gatewayRouteValidator.checkExposure(serviceName,urlSuffix);
+            log.info("✅ Request Forwarded : {}", targetUrl);
+
+
             return restTemplate.exchange(targetUrl, method, entity, String.class);
 
         } catch (Exception e) {

@@ -1,14 +1,9 @@
 package com.gateway.gateway;
 
-import com.gateway.registry.RegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
 
 /*
  * Already receiving urlSuffix containing /institutes/:id
@@ -26,12 +21,6 @@ import java.util.Optional;
 public class GatewayRouteValidator {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayRouteValidator.class);
-    private final RegistryService registryService;
-
-    @Autowired
-    public GatewayRouteValidator(RegistryService registryService){
-        this.registryService = registryService;
-    }
 
     public void checkExposure(String serviceName, String urlSuffix) {
 
