@@ -1,6 +1,5 @@
-package com.univault.gateway.gateway;
+package com.gateway;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,17 +9,25 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+
+/**
+ * Stage wise execution of gateway
+ * Stage 1 -> get the incoming request
+ * Stage 2 -> extract service name, create copy of http request, create target url
+ * Stage 3 -> forward the request based on exposure set in application.yml
+ */
 @CrossOrigin(origins = "*", allowedHeaders = "*", exposedHeaders = "Authorization")
 @RestController
 @RequestMapping("/")
-public class GatewayController {
+public class Controller {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayController.class);
-    private final GatewayService gatewayService;
+    private static final Logger log = LoggerFactory.getLogger(Controller.class);
+    private final Service service;
 
     @Autowired
-    public GatewayController(GatewayService gatewayService) {
-        this.gatewayService = gatewayService;
+    public Controller(Service service) {
+        this.service = service;
     }
 
     /*
@@ -33,7 +40,7 @@ public class GatewayController {
     @RequestMapping("/**")
     public ResponseEntity<?> incomingRequest(HttpServletRequest request) {
         try {
-            return gatewayService.forwardRequest(request);
+            return service.forwardRequest(request);
         } catch (RuntimeException e) {
             log.error("Runtime exception while forwarding to service {}: {}", "TBA", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Service unavailable: " + e.getMessage());
