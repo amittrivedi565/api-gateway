@@ -1,10 +1,10 @@
-package com.univault.gateway.config;
-
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
+package com.gateway.config;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "services")
@@ -24,48 +24,45 @@ public class GatewayServicesProperties {
         private String name;
         private String host;
         private int port;
-        private String defaultExposure; // new default-exposure
-        private List<Route> routes = new ArrayList<>(); // list of route-specific exposures
+        private String defaultExposure; // binds default-exposure in YAML
+        private final List<Route> routes = new ArrayList<>();
 
-        // getters & setters
+        // Getters
         public String getName() {
             return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
         }
 
         public String getHost() {
             return host;
         }
 
-        public void setHost(String host) {
-            this.host = host;
-        }
-
         public int getPort() {
             return port;
-        }
-
-        public void setPort(int port) {
-            this.port = port;
         }
 
         public String getDefaultExposure() {
             return defaultExposure;
         }
 
-        public void setDefaultExposure(String defaultExposure) {
-            this.defaultExposure = defaultExposure;
-        }
-
         public List<Route> getRoutes() {
             return routes;
         }
 
-        public void setRoutes(List<Route> routes) {
-            this.routes = routes;
+        // Setters (required for Spring Boot binding)
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public void setHost(String host) {
+            this.host = host;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public void setDefaultExposure(String defaultExposure) {
+            this.defaultExposure = defaultExposure;
         }
     }
 
@@ -83,20 +80,21 @@ public class GatewayServicesProperties {
             this.path = path;
         }
 
-        public String getMethod() {
-            return method;
-        }
-
         public void setMethod(String method) {
             this.method = method;
+        }
+
+        public void setExposure(String exposure) {
+            this.exposure = exposure;
+        }
+
+        public String getMethod() {
+            return method;
         }
 
         public String getExposure() {
             return exposure;
         }
 
-        public void setExposure(String exposure) {
-            this.exposure = exposure;
-        }
     }
 }

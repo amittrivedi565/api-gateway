@@ -1,4 +1,4 @@
-package com.univault.gateway.registry;
+package com.gateway.registry;
 
 import java.util.List;
 

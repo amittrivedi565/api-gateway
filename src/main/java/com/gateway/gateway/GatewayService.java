@@ -1,9 +1,8 @@
-package com.univault.gateway.gateway;
+package com.gateway.gateway;
 
-import com.univault.gateway.registry.RegistryService;
-import com.univault.gateway.registry.ServiceInfo;
+import com.gateway.registry.RegistryService;
+import com.gateway.registry.ServiceInfo;
 import jakarta.servlet.http.HttpServletRequest;
-import org.apache.juli.logging.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,12 +17,15 @@ import java.util.Collections;
 public class GatewayService {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayService.class);
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final RegistryService registryService;
+    private final GatewayRouteValidator gatewayRouteValidator;
 
     @Autowired
-    public GatewayService(RegistryService registryService) {
+    public GatewayService(RegistryService registryService, GatewayRouteValidator gatewayRouteValidator) {
         this.registryService = registryService;
+        this.gatewayRouteValidator = gatewayRouteValidator;
     }
 
     /*
@@ -96,13 +98,16 @@ public class GatewayService {
 
 
             /*
-                * Incoming url : /academic-service/institutes/12345
+                * Incoming url : /academic-service/abc/123
                 * Required url : http://host:port/urlSuffix
             * */
             String targetUrl = createTargetUrl(serviceInfo, urlSuffix);
+            log.info("Target Url Generated : {}",targetUrl);
 
             HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
-            log.info("Request Forwarded : {}",targetUrl);
+            log.info(urlSuffix);
+            log.info("✅ Request Forwarded : {}",targetUrl);
+            gatewayRouteValidator.checkExposure(serviceName,urlSuffix);
             return restTemplate.exchange(targetUrl, method, entity, String.class);
 
         } catch (Exception e) {

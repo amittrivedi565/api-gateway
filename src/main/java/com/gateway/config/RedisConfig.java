@@ -1,6 +1,6 @@
-package com.univault.gateway.config;
+package com.gateway.config;
 
-import com.univault.gateway.registry.ServiceInfo;
+import com.gateway.registry.ServiceInfo;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;

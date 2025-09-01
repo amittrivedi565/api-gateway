@@ -1,16 +1,18 @@
-package com.univault.gateway.config;
+package com.gateway.config;
 
-import com.univault.gateway.registry.ServiceInfo;
-import com.univault.gateway.registry.RegistryService;
-import com.univault.gateway.registry.RouteInfo;
-import jakarta.annotation.PostConstruct;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import com.gateway.registry.RegistryService;
+import com.gateway.registry.RouteInfo;
+import com.gateway.registry.ServiceInfo;
+
+import jakarta.annotation.PostConstruct;
 
 @Component
 public class GatewayServiceRegistrar {
