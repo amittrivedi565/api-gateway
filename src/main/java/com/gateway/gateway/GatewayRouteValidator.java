@@ -1,8 +1,6 @@
 package com.gateway.gateway;
 
 import com.gateway.registry.RegistryService;
-import com.gateway.registry.RouteInfo;
-import com.gateway.registry.ServiceInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,22 +33,7 @@ public class GatewayRouteValidator {
         this.registryService = registryService;
     }
 
-    public String checkExposure(String serviceName, String urlSuffix) {
-        Optional<ServiceInfo> serviceInfo = registryService.getService(serviceName);
-        log.info(String.valueOf(serviceInfo));
-        List<RouteInfo> routes = serviceInfo
-                .map(ServiceInfo::routes)
-                .orElse(Collections.emptyList());
+    public void checkExposure(String serviceName, String urlSuffix) {
 
-        for (RouteInfo r : routes) {
-            if (r.path().equals(urlSuffix)) {
-                System.out.println("Matched route: " + r);
-                System.out.println("Exposure: " + r.exposure());
-                return r.path();
-            }
-        }
-
-        return "No match found"; // or return a default value / throw exception
     }
-
 }

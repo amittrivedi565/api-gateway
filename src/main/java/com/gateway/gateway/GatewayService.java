@@ -1,7 +1,6 @@
 package com.gateway.gateway;
 
 import com.gateway.registry.RegistryService;
-import com.gateway.registry.ServiceInfo;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
