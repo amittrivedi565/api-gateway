@@ -1,4 +1,4 @@
-package com.gateway.gateway;
+package com.gateway;
 
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -11,19 +11,14 @@ import java.util.List;
 
 @Component
 @ConfigurationProperties(prefix = "services")
-public class GatewayServiceInfoRegistry {
+public class ServiceInfoRegistry {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayServiceInfoRegistry.class);
+    private static final Logger log = LoggerFactory.getLogger(ServiceInfoRegistry.class);
 
     private List<ServiceInfo> list = new ArrayList<>();
 
-    public List<ServiceInfo> getList() {
-        return list;
-    }
-
-    public void setList(List<ServiceInfo> list) {
-        this.list = list;
-    }
+    public List<ServiceInfo> getList() { return list; }
+    public void setList(List<ServiceInfo> list) { this.list = list; }
 
     // ANSI color codes
     private static final String RESET = "\u001B[0m";
@@ -49,10 +44,9 @@ public class GatewayServiceInfoRegistry {
         private String name;
         private String host;
         private int port;
-        private String defaultExposure;
+        private Exposure defaultExposure;  // use enum here
         private final List<Route> routes = new ArrayList<>();
 
-        // getters & setters
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
 
@@ -62,8 +56,8 @@ public class GatewayServiceInfoRegistry {
         public int getPort() { return port; }
         public void setPort(int port) { this.port = port; }
 
-        public String getDefaultExposure() { return defaultExposure; }
-        public void setDefaultExposure(String defaultExposure) { this.defaultExposure = defaultExposure; }
+        public Exposure getDefaultExposure() { return defaultExposure; }
+        public void setDefaultExposure(Exposure defaultExposure) { this.defaultExposure = defaultExposure; }
 
         public List<Route> getRoutes() { return routes; }
     }
@@ -71,16 +65,23 @@ public class GatewayServiceInfoRegistry {
     public static class Route {
         private String path;
         private String method;
-        private String exposure;
+        private Exposure exposure; // use enum here
 
-        // getters & setters
         public String getPath() { return path; }
         public void setPath(String path) { this.path = path; }
 
         public String getMethod() { return method; }
         public void setMethod(String method) { this.method = method; }
 
-        public String getExposure() { return exposure; }
-        public void setExposure(String exposure) { this.exposure = exposure; }
+        public Exposure getExposure() { return exposure; }
+        public void setExposure(Exposure exposure) { this.exposure = exposure; }
+    }
+
+    // Define the enum here
+    public enum Exposure {
+        PUBLIC,
+        PRIVATE,
+        PROTECTED
     }
 }
+

@@ -1,43 +1,53 @@
-package com.gateway.gateway;
+package com.gateway;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
-import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Arrays;
 import java.util.Collections;
 
-@Service
-public class GatewayService {
+@org.springframework.stereotype.Service
+public class Service {
 
-    private static final Logger log = LoggerFactory.getLogger(GatewayService.class);
+    private static final Logger log = LoggerFactory.getLogger(Service.class);
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final GatewayServiceInfoRegistry gatewayServiceInfoRegistry;
+    private final ServiceInfoRegistry serviceInfoRegistry;
+    private final RouteValidator routeValidator;
 
     @Autowired
-    public GatewayService(GatewayServiceInfoRegistry gatewayServiceInfoRegistry) {
-        this.gatewayServiceInfoRegistry = gatewayServiceInfoRegistry;
+    public Service(ServiceInfoRegistry serviceInfoRegistry, RouteValidator routeValidator) {
+        this.serviceInfoRegistry = serviceInfoRegistry;
+        this.routeValidator = routeValidator;
     }
 
     /*
      * By providing HttpServlet incoming request url we can extract service name for redirection
      * */
-    private String extractServiceNameFromUrl(String url) throws NullPointerException {
+    private String extractServiceNameFromUrl(String url) {
         if (url == null) {
             throw new IllegalArgumentException("URL cannot be null");
         }
+
         /*
-         * Url start with service name
-         * Splits url with / in between for e.g., /academic/institutes/12354
-         * After splitting -> parts = ["","academic","institutes","12345"]
-         * Converts it to stream for perform filter operation
-         * If the string is not empty then only add to the new String[] or don't
-         * */
+          * Let's suppose the incoming url is like `localhost:4000/service-name/api/endpoint`
+          * Extract service name from the url
+          *
+          * First convert the url into Array[] of streams
+          * Split array by "/", so it will be like ["","/","service-name","endpoint"]
+          *
+          *
+          * Remove the blanks ->  ["/","service-name","endpoint"]
+          *
+          *
+          * Create new array
+          * Our Service name will be at index 0, parts[0]
+         */
         String[] parts = Arrays.stream(url.split("/"))
                 .filter(s -> !s.isBlank())
                 .toArray(String[]::new);
@@ -46,22 +56,21 @@ public class GatewayService {
             throw new IllegalArgumentException("No service name found in URL: " + url);
         }
         log.info("URL generated for service {}", parts[0]);
-        /* Returns service name*/
         return parts[0];
     }
 
     /*
      * Build target url from the existing request, http://localhost:8080/institutes/abc
      * */
-    private String createTargetUrl(GatewayServiceInfoRegistry.ServiceInfo serviceInfo, String url) {
+    private String createTargetUrl(ServiceInfoRegistry.ServiceInfo serviceInfo, String url) {
         return "http://" + serviceInfo.getHost() + ":" + serviceInfo.getPort() + url;
     }
 
     /*
      * Helper method to find service info from in-memory YAML config
      * */
-    private GatewayServiceInfoRegistry.ServiceInfo getService(String serviceName) {
-        return gatewayServiceInfoRegistry.getList()
+    private ServiceInfoRegistry.ServiceInfo getService(String serviceName) {
+        return serviceInfoRegistry.getList()
                 .stream()
                 .filter(s -> s.getName().equals(serviceName))
                 .findFirst()
@@ -83,7 +92,7 @@ public class GatewayService {
              * serviceName is received from the @extractServiceNameFromUrl
              * */
             String serviceName = extractServiceNameFromUrl(url);
-            GatewayServiceInfoRegistry.ServiceInfo serviceInfo = getService(serviceName);
+            ServiceInfoRegistry.ServiceInfo serviceInfo = getService(serviceName);
 
             /*
              * Get the url incoming, but remember this url also contains service name so we have to remove that as well
@@ -109,12 +118,22 @@ public class GatewayService {
             log.info("Target Url Generated : {}", targetUrl);
 
             HttpEntity<byte[]> entity = new HttpEntity<>(body, headers);
-            log.info(urlSuffix);
             log.info("✅ Request Forwarded : {}", targetUrl);
+            routeValidator.checkExposure(serviceName,urlSuffix);
+            try {
+                /*
+                 * Forward the required request to the destination
+                 */
+                return restTemplate.exchange(targetUrl, method, entity, String.class);
+            } catch (ResourceAccessException e) {
 
-
-            return restTemplate.exchange(targetUrl, method, entity, String.class);
-
+                /*
+                 * If the service is down or not running, gracefully handle it
+                 */
+                log.error("Service {} is unavailable at {}: {}", serviceName, targetUrl, e.getMessage());
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body("Service " + serviceName + " is currently unavailable.");
+            }
         } catch (Exception e) {
             log.error("Error forwarding request", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
