@@ -8,6 +8,7 @@ import org.springframework.http.*;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 @org.springframework.stereotype.Service
@@ -128,7 +129,51 @@ public class Service {
     }
 
     private boolean isAuthenticated(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        return authHeader != null && authHeader.startsWith("Bearer ");
+        try {
+            // 1. Extract token from Authorization header
+            String token = null;
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+
+            // 2. If no header token, check cookies
+            if (token == null && request.getCookies() != null) {
+                for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+                    if ("AuthToken".equals(cookie.getName())) {
+                        token = cookie.getValue();
+                        break;
+                    }
+                }
+            }
+
+            // 3. No token found
+            if (token == null) return false;
+
+            // 4. Call Auth Service to verify token
+            Registry.Service service = registry.getList()
+                    .stream()
+                    .filter(s -> s.getName().equals("auth"))
+                    .findFirst()
+                    .orElseThrow();
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            String authEndpoint = utils.createTargetUrl(service,"/auth/token");
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + token);
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(authEndpoint, HttpMethod.POST, entity, String.class);
+
+            return response.getStatusCode() == HttpStatus.OK;
+
+        } catch (Exception e) {
+            log.error("Error authenticating token", e);
+            return false;
+        }
     }
+
+
 }
