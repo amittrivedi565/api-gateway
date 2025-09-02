@@ -26,8 +26,13 @@ public class Utils {
      * since it is internal network, ip addresses will start with certain suffixes
      */
     public boolean isInternalIp(String ip) {
-        return ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("127.");
+        return ip.startsWith("10.")
+                || ip.startsWith("192.168.")
+                || ip.startsWith("127.")
+                || ip.equals("0:0:0:0:0:0:0:1")
+                || ip.equals("::1");
     }
+
 
     /*
      * @isAuthenticated validates token provided by the user, incoming with the
