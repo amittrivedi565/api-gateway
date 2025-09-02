@@ -47,6 +47,11 @@ public class Validator {
         return exposure;
     }
 
+    /*
+     * PatterMatcher ensures that defined routes and requested route is same
+     * This is required due to route being dynamic with variables such as /:id
+     * This ensures that patterns are matched correctly
+    */
     public Boolean PatternMatcher(String routePath, String requestPath){
         String[] routeParts = routePath.split("/");
         String[] requestParts = requestPath.split("/");

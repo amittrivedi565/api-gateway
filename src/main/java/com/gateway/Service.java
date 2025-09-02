@@ -1,15 +1,19 @@
 package com.gateway;
 
-import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Arrays;
-import java.util.Collections;
+import jakarta.servlet.http.HttpServletRequest;
 
 @org.springframework.stereotype.Service
 public class Service {
@@ -27,27 +31,33 @@ public class Service {
         this.utils = utils;
         this.validator = validator;
     }
+
     /*
-     * forwardRequest redirect the incoming request from the client to the required microservice
+     * forwardRequest redirect the incoming request from the client to the required
+     * microservice
      * Few Args are required request, method, serviceName
      * Method contains GET, POST, PUT and DELETE as per REST API
-     * */
+     */
     public ResponseEntity<?> forwardRequest(HttpServletRequest request) {
         try {
             String url = request.getRequestURI();
 
             /*
-             * Finds instance of the required service, firstly available if not return Service Unavailable
-             * service will contain information such as name, host, port, routes in which routes exposure, method etc...
+             * Finds instance of the required service, firstly available if not return
+             * Service Unavailable
+             * service will contain information such as name, host, port, routes in which
+             * routes exposure, method etc...
              * serviceName is received from the @extractServiceNameFromUrl
-             * */
+             */
             String serviceName = utils.extractServiceNameFromUrl(url);
             Registry.Service service = utils.getService(serviceName, registry);
 
-
             /*
              * @requestPath removes the service name from the url
-             * @body read all content from the incoming request, create new one for redirection
+             * 
+             * @body read all content from the incoming request, create new one for
+             * redirection
+             * 
              * @method gets the method type for request e.g., GET, POST...
              */
             String requestPath = utils.removeServiceNameFromUrl(url);
@@ -76,6 +86,13 @@ public class Service {
             try {
                 /*
                  * Forward the required request to the destination
+                 * 
+                 * EXPOSURE: PUBLIC, Route request to the destination without any checks
+                 * 
+                 * EXPOSURE: PRIVATE, Request can only be made by internal network @isInternalIp
+                 * 
+                 * EXPOSURE: PROTECTED, Check if the incoming request contains token or not,
+                 * authenticate this token with @isAuthenticated
                  */
                 switch (exposure) {
                     case PUBLIC:
@@ -84,7 +101,7 @@ public class Service {
 
                     case PRIVATE:
                         String clientIp = request.getRemoteAddr();
-                        if (isInternalIp(clientIp)) {
+                        if (utils.isInternalIp(clientIp)) {
                             log.info("PRIVATE route accessed from internal IP: {}", clientIp);
                             return restTemplate.exchange(targetUrl, method, entity, String.class);
                         } else {
@@ -94,7 +111,7 @@ public class Service {
                         }
 
                     case PROTECTED:
-                        if (isAuthenticated(request)) {
+                        if (utils.isAuthenticated(request, restTemplate, registry)) {
                             log.info("PROTECTED route accessed by authenticated user");
                             return restTemplate.exchange(targetUrl, method, entity, String.class);
                         } else {
@@ -109,7 +126,6 @@ public class Service {
                                 .body("Unknown exposure type");
                 }
             } catch (ResourceAccessException e) {
-
                 /*
                  * If the service is down or not running, gracefully handle it
                  */
@@ -123,57 +139,4 @@ public class Service {
         }
 
     }
-
-    private boolean isInternalIp(String ip) {
-        return ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("127.");
-    }
-
-    private boolean isAuthenticated(HttpServletRequest request) {
-        try {
-            // 1. Extract token from Authorization header
-            String token = null;
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                token = authHeader.substring(7);
-            }
-
-            // 2. If no header token, check cookies
-            if (token == null && request.getCookies() != null) {
-                for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
-                    if ("AuthToken".equals(cookie.getName())) {
-                        token = cookie.getValue();
-                        break;
-                    }
-                }
-            }
-
-            // 3. No token found
-            if (token == null) return false;
-
-            // 4. Call Auth Service to verify token
-            Registry.Service service = registry.getList()
-                    .stream()
-                    .filter(s -> s.getName().equals("auth"))
-                    .findFirst()
-                    .orElseThrow();
-
-            RestTemplate restTemplate = new RestTemplate();
-
-            String authEndpoint = utils.createTargetUrl(service,"/auth/token");
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + token);
-            HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-            ResponseEntity<String> response = restTemplate.exchange(authEndpoint, HttpMethod.POST, entity, String.class);
-
-            return response.getStatusCode() == HttpStatus.OK;
-
-        } catch (Exception e) {
-            log.error("Error authenticating token", e);
-            return false;
-        }
-    }
-
-
 }
