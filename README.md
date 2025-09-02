@@ -26,6 +26,22 @@ This is a Spring Boot Gateway service that forwards incoming requests to microse
 - Logs service and route information with color coding.
 
 ---
+## Important For Authentication
+```imp
+## This route should be predefined in the application.yml file, default this is set, on this route token validation will occur
+     - name: auth
+      host: localhost
+      port: 5030
+      default-exposure: private
+      routes:
+        - path: /auth/token
+          method: POST
+          exposure: protected
+```
+
+
+
+---
 
 ## Configuration
 
