@@ -72,6 +72,10 @@ services:
       host: localhost
       port: 5030
       default-exposure: private
+      routes:
+        - path: /auth/token
+          method: POST
+          exposure: protected
 ```
 ## Set Application.yml 
 ```aiignore
