@@ -27,7 +27,7 @@ This is a Spring Boot Gateway service that forwards incoming requests to microse
 
 ---
 ## Important For Authentication
-to integrate your authentication service with the gateway, ensure route `auth` with `POST` method exist with specified url of `/aut/token` in your auth service if not configure them according to this, this will be used to validate token provided by the user in header or cookies.
+To integrate your authentication service with the gateway, ensure route `auth` with `POST` method exist with specified url of `/aut/token` in your auth service if not configure them according to this, this will be used to validate token provided by the user in header or cookies.
 ```imp
      - name: auth
       host: localhost
